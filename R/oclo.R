@@ -8,7 +8,14 @@ library(pryr)
 #' @keywords oclo
 #' @export
 #' @examples
-#' oclo()
+#' # Generate some data
+#' n <- 25
+#' x1 <- rnorm(n)
+#' x2 <- nrorm(n)
+#' y <- 10 + 5*x1 + 2*x2 + rnorm(n)
+#' 
+#' fit.oclo <- oclo(y~x1+x2)
+#' 
 oclo <- function(x, ...) {
   UseMethod("oclo")
 }
