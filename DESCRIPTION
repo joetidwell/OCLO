@@ -1,8 +1,8 @@
 Package: oclo
-Title: What the Package Does (one line, title case)
+Title: Order Constrained Linear Optimization
 Version: 0.0.0.9000
-Authors@R: person("First", "Last", email = "first.last@example.com", role = c("aut", "cre"))
-Description: What the package does (one paragraph).
+Authors@R: person("Joe", "Tidwell", email = "jtidwell@umd.edu", role = c("aut", "cre"))
+Description: An implementation of the General Monotone Model (GeMM) with order constrained linear optimization (OCLO).
 Depends: R (>= 3.2.3)
 License: What license is it under?
 LazyData: true
