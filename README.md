@@ -1,12 +1,10 @@
-gemmR
+oclo
 =====
 
 The General Monotone Model (GeMM) in `R` with Order Constrained Linear Optimization (OCLO). This is an R version of the non-parametric regression algorithm proposed by Dougherty & Thomas (2012). The base OCLO algorithm works as follows:
 
-1. Generate random weights with a genetic algorithm
-2. Test the fit between the sum of the weighted predictors and an outcome using Bayesian Information Criterion based on tau-to-r transformation.
-3. Select top ___ of candidate beta vectors, mutate and generate new weights, repeat for some number of generations.
-4. Repeat entire process some number of times to check for convergence.
+1. Via genetic search, find the regression weights that optimize ordinal fit. 
+2. Within the set of best fitting ordinal predictors, scale the weights to obtain the best fitting linear predictors.
 
 The resulting `ocloFit` object is an S3 class object. We're working on increasing usability and writing a proper vignette. Information on the basis for GeMM can be found in the [original paper](http://www.bsos.umd.edu/psyc/dougherty/pdf%20articles/DoughertyThomas2012Rev.pdf).
 
