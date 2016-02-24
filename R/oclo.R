@@ -17,7 +17,13 @@ library(pryr)
 #' fit.oclo <- oclo(y~x1+x2)
 #' 
 oclo <- function(x, ...) {
-  UseMethod("oclo")
+  UseMethod("oclo", x)
+}
+
+#' 
+#' @export
+oclo.default <- function(x, data, ...) {
+  stop("oclo() currently only accepts formulas")
 }
 
 #' 
@@ -59,11 +65,39 @@ crossover <- function(idx, ctpt, parent.A, parent.B, k) {
   c(parent.A[idx,1:ctpt],parent.B[idx,(ctpt+1):k])
 }
 
+### Genetic Algorithm Functions
+# Initial betas
+init.chromo <- function(k,
+                        n.beta,
+                        seed,
+                        y,
+                        X,
+                        model.select) {
+
+  if (!(is.null(X)) & !(class(X) %in% c("data.frame","data.table","matrix"))) { 
+    warning(paste0("'seed' must be either 'random' or 'ols'. Defaulting to 'random'."))
+  }
+
+  n.K <- 2^(1:k)    
+  n.K <- ceiling(n.K/sum(n.K)*n.beta)
+  K <- sapply(1:k, function(kk) {
+        c(rep(1,kk),rep(0,k-kk))
+      })
+  K <- K[,rep(1:ncol(K),n.K)]
+  K <- apply(K,2,sample)
+  lambda <- matrix(rnorm(ncol(X)*ncol(K)),nrow=ncol(K))
+  if(seed=="ols") {
+    lambda <- t(t(lambda) + coef(lm(y~X))[-1])
+  }
+  if(model.select) {lambda <- lambda*t(K)}
+  return(lambda)
+}
+
+
 #' 
 #' @export
 oclo.ocloData <- function(gdata, ...,
                           oscale = TRUE, 
-                          verbose = FALSE, 
                           n.beta = 1000, 
                           n.gens=10,
                           model.select=TRUE,
@@ -71,7 +105,8 @@ oclo.ocloData <- function(gdata, ...,
                           repro.fun = bicFit,
                           p.mutate = .01,
                           pdata = FALSE,
-                          s.mutate = .25) {
+                          s.mutate = .25,
+                          seed = "random") {
 
   out <- structure(list(), class = "ocloFit")
 
@@ -88,15 +123,7 @@ oclo.ocloData <- function(gdata, ...,
   #### Genetic algorithm
 
   ## initialize chromosomes
-  n.K <- 2^(1:k)
-  n.K <- ceiling(n.K/sum(n.K)*n.beta)
-  K <- sapply(1:k, function(kk) {
-        c(rep(1,kk),rep(0,k-kk))
-      })
-  K <- K[,rep(1:ncol(K),n.K)]
-  K <- apply(K,2,sample)
-  lambda <- matrix(rnorm(ncol(X)*ncol(K)),nrow=ncol(K))
-  if(model.select) {lambda <- lambda*t(K)}
+  lambda <- init.chromo(k,n.beta,seed,y,X,model.select)
 
   # Initialize plotting variables
   if(pdata){
@@ -156,8 +183,10 @@ oclo.ocloData <- function(gdata, ...,
       mutate.idx <- sample(1:prod(dim(lambda)),rbinom(1,prod(dim(lambda)),p.mutate))
       if(i < 10) {
         lambda[mutate.idx] <- lambda[mutate.idx] + rnorm(length(mutate.idx),0,s.mutate)        
-      } else {
+      } else if(i < 15) {
               lambda[mutate.idx] <- lambda[mutate.idx] + rnorm(length(mutate.idx),0,s.mutate/2)
+      } else {
+              lambda[mutate.idx] <- lambda[mutate.idx] + rnorm(length(mutate.idx),0,.001)
       }
   
       # terminate unfit
