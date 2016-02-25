@@ -93,6 +93,104 @@ init.chromo <- function(k,
   return(lambda)
 }
 
+fitness <- function(y,X,lambda,n,k,surv.fun,repro.fun,n.elites) {
+    ## survival fitness (tau)
+    y.hat <- X%*%t(lambda)
+
+    surv.fit <- abs(apply(y.hat,2,function(yhat) {surv.fun(y,yhat)}))
+
+    ## reproductive fitness
+    repro.fit <- repro.fun(surv.fit,n,k,lambda)
+
+    # model size
+    tracek <- apply(lambda,1,function(l)sum(l!=0))
+
+    # best chromosomes 
+    elites <- lambda[order(repro.fit,surv.fit),][1:n.elites,]
+
+
+    return(list(surv   = surv.fit,
+                repro  = repro.fit,
+                elites = elites,
+                k      = tracek))
+}
+
+cull <- function(surv, n.beta, lambda) {
+  # probability of surviving until reproduction
+  p.survival <- surv/sum(surv)
+
+  # Select mu - i.e. chromosomes that survive to reproduction
+  mu.idx <- sample(1:length(surv),
+                   ceiling(.75*n.beta),
+                   replace=TRUE,
+                   prob=p.survival)
+  mu <- lambda[mu.idx,]
+  rownames(mu) <- mu.idx
+  return(mu)
+}
+
+initTrace <- function(trace.ga) {
+  trace.ga$surv <- data.frame(mu.fit    = numeric(), 
+                              sd.fit    = numeric(),
+                              best.fit  = numeric())
+  trace.ga$repro <- data.frame(mu.fit   = numeric(), 
+                               sd.fit   = numeric(),
+                               best.fit = numeric())
+  trace.ga$k <- data.frame(k.mu = numeric(), 
+                           k.sd = numeric())
+
+  return(trace.ga)
+}
+
+
+addTrace <- function(trace.ga, fit) {
+  trace.ga$k[nrow(trace.ga$k)+1,] <- c(mean(fit$k),
+                                       sd(fit$k))
+  trace.ga$surv[nrow(trace.ga$surv)+1,] <- c(mean(fit$surv),
+                                             sd(fit$surv),
+                                             max(fit$surv))
+  trace.ga$repro[nrow(trace.ga$repro)+1,] <- c(mean(fit$repro),
+                                               sd(fit$repro),
+                                               min(fit$repro))
+  return(trace.ga)
+}
+
+repro <- function(fit,mu.idx,n.beta,n.elites,k,mu,lambda,p.mutate,s.mutate,i) {
+  p.reproduce <- rank(-fit$repro[mu.idx])
+  p.reproduce <- p.reproduce/sum(p.reproduce)  
+  lambda.idx <- sample(1:nrow(mu),n.beta-n.elites,replace=TRUE,prob=p.reproduce)
+
+  # crossover
+  crosspoint <- sample(1:(k-1),length(lambda.idx),replace=TRUE)
+  parent.A <- mu[lambda.idx,]
+  parent.B <- mu[sample(lambda.idx),]
+  lambda <- do.call(rbind, 
+                    Map(partial(crossover, k=k, 
+                                parent.A=parent.A, 
+                                parent.B=parent.B), 
+                        1:length(lambda.idx), crosspoint))
+
+  # mutate
+  mutate.idx <- sample(1:prod(dim(lambda)),
+                       rbinom(1,prod(dim(lambda)),p.mutate))
+  if(i < 5) {
+  lambda[mutate.idx] <- rnorm(length(mutate.idx),0,1)        
+  } else if(i < 15) {
+    lambda[mutate.idx] <- lambda[mutate.idx] + 
+                          rnorm(length(mutate.idx),0,s.mutate)        
+  } else {
+          lambda[mutate.idx] <- lambda[mutate.idx] + 
+                                rnorm(length(mutate.idx),0,s.mutate/2)
+  } 
+  
+  # terminate unfit
+  lambda <- lambda[!apply(lambda, 1, function(r) sum(r)==0),]
+  
+  # Add elites
+  lambda <- rbind(fit$elites,lambda)
+
+  return(lambda)
+}
 
 #' 
 #' @export
@@ -104,11 +202,13 @@ oclo.ocloData <- function(gdata, ...,
                           surv.fun = cor.fk,
                           repro.fun = bicFit,
                           p.mutate = .01,
-                          pdata = FALSE,
+                          pdata = TRUE,
                           s.mutate = .25,
-                          seed = "random") {
+                          seed = "random",
+                          n.elites = 5) {
 
   out <- structure(list(), class = "ocloFit")
+  trace.ga <- structure(list(), class="ocloTrace")
 
   y <- gdata$y
   X <- gdata$X
@@ -127,78 +227,31 @@ oclo.ocloData <- function(gdata, ...,
 
   # Initialize plotting variables
   if(pdata){
-    out$tracefit <- list()
-    out$tracefit$surv <- data.frame(mu.fit=numeric(), best.fit=numeric())
-    out$tracefit$repro <- data.frame(mu.fit=numeric(), best.fit=numeric())
-    out$tracefit$k <- data.frame(k.mu=numeric(),k.sd=numeric())
+    trace.ga <- initTrace(trace.ga)
   }
 
   # Two-step GA for model selection
   if(model.select) {
     for(i in (1:n.gens)) {
-      tracek <- apply(lambda,1,function(l)sum(l==0))
 
-      ## survival fitness (tau)
-      surv.fit <- abs(apply(X%*%t(lambda),2,function(yhat) {surv.fun(y,yhat)}))
+      fit <- fitness(y,X,lambda,n,k,surv.fun,repro.fun,n.elites)
 
-      repro.fit <- repro.fun(surv.fit,n,k,lambda)
-      elites <- lambda[order(repro.fit,surv.fit),][1:5,]
-
-      p.survival <- surv.fit/sum(surv.fit)
-  
-      # Select mu
-      mu.idx <- sample(1:length(surv.fit),
-                       ceiling(.75*n.beta),
-                       replace=TRUE,
-                       prob=p.survival)
-      mu <- lambda[mu.idx,]
-  
-      ### reproductive fitness 
       # Plotting data
       if(pdata) {
-            out$tracefit$k <- rbind(out$tracefit$k,
-                                    data.frame(k.mu=mean(k-tracek),
-                                               k.sd=sd(k-tracek)))
-            out$tracefit$surv <- rbind(out$tracefit$surv,
-                                        data.frame(mu.fit=mean(surv.fit),best.fit=max(surv.fit)))
-            out$tracefit$repro <- rbind(out$tracefit$repro,
-                                        data.frame(mu.fit=mean(repro.fit),best.fit=min(repro.fit)))
+        trace.ga <- addTrace(trace.ga, fit) 
       }
 
-      ##linear rank-selection by reproductive fitness
-      p.reproduce <- rank(-repro.fit[mu.idx])
-      p.reproduce <- p.reproduce/sum(p.reproduce)  
-        lambda.idx <- sample(1:nrow(mu),n.beta-5,replace=TRUE,prob=p.reproduce)
-  
-      ## Perturb 
-      # crossover
+      # Survival Fitness
+      mu <- cull(fit$surv, n.beta, lambda)
 
-      crosspoint <- sample(1:(k-1),length(lambda.idx),replace=TRUE)
-      parent.A <- mu[lambda.idx,]
-      parent.B <- mu[sample(lambda.idx),]
+      # linear rank-selection by reproductive fitness
+      lambda <- repro(fit,mu.idx=as.numeric(rownames(mu)),n.beta,n.elites,k,mu,lambda,p.mutate,s.mutate,i)
 
-      lambda <- do.call(rbind, Map(partial(crossover, k=k, parent.A=parent.A, parent.B=parent.B), 1:length(lambda.idx), crosspoint))
-    
-      # mutate
-      mutate.idx <- sample(1:prod(dim(lambda)),rbinom(1,prod(dim(lambda)),p.mutate))
-      if(i < 10) {
-        lambda[mutate.idx] <- lambda[mutate.idx] + rnorm(length(mutate.idx),0,s.mutate)        
-      } else if(i < 15) {
-              lambda[mutate.idx] <- lambda[mutate.idx] + rnorm(length(mutate.idx),0,s.mutate/2)
-      } else {
-              lambda[mutate.idx] <- lambda[mutate.idx] + rnorm(length(mutate.idx),0,.001)
-      }
-  
-      # terminate unfit
-      lambda <- lambda[!apply(lambda, 1, function(r) sum(r)==0),]
-  
-      # Add elites
-      lambda <- rbind(elites,lambda)
     }
     
-    surv.fit <- abs(apply(X%*%t(lambda),2,function(yhat) {surv.fun(y,yhat)}))
-    repro.fit <- repro.fun(surv.fit,n,k,lambda)
-    lambda <- lambda[order(repro.fit, surv.fit),]
+    fit <- fitness(y,X,lambda,n,k,surv.fun,repro.fun,n.elites)
+    if(pdata) { trace.ga <- addTrace(trace.ga, fit) }
+    lambda <- lambda[order(fit$repro, fit$surv),]
 
 
   } else {
@@ -279,6 +332,7 @@ oclo.ocloData <- function(gdata, ...,
                       R.sq=R.sq[order(bic, -tau, -R.sq)],
                       BIC=bic[order(bic, -tau, -R.sq)])
     out$coefficients <- out$Beta[1,]
+    out$oscale <- data.frame(Intercept=scaling[,1], scale.fac=scaling[,2])
   } else {
   # add unit-scaled, non-oclo coefficients 
     out$Beta <- lambda
@@ -289,6 +343,7 @@ oclo.ocloData <- function(gdata, ...,
 
   out$call <- gdata$formula
   out$model <- gdata$model
+  out$trace <- trace.ga
 
   out
 }
@@ -358,9 +413,7 @@ residuals.ocloFit <- function(obj, ...) {
 #' 
 #' @export
 plot.ocloFit <- function(obj, ...) {
-  pdata <- obj$trace
-
-  if (is.null(pdata)) { 
+  if (length(obj$trace)==0) { 
     stop("Run oclo with pdata=TRUE to obtain plotting data.")
   }
   if(nrow(obj$trace$repro)==0) {
@@ -372,16 +425,23 @@ plot.ocloFit <- function(obj, ...) {
     lines(x=1:nrow(pdata),y=pdata$surv.best, col="blue")
   } else {
     pdata <- data.frame(cbind(obj$trace$surv,obj$trace$repro))
-    names(pdata) <- c("surv.mu","surv.best","repro.mu","repro.best")
+    names(pdata) <- c("surv.mu","surv.sd","surv.best","repro.mu","repro.sd","repro.best")
     par(mfrow=c(2,2))
+
+    x <- 1:nrow(pdata)
     plot(x=1:nrow(pdata),y=pdata$surv.mu, type="l", col="red", ylim=c(0,1),
       xlab="Generation", ylab="Survival Fitness")
+    polygon(c(x,rev(x)),c(pdata$surv.mu-pdata$surv.sd,rev(pdata$surv.mu+pdata$surv.sd)),col="lightgrey", border="darkgrey")
+    lines(x=1:nrow(pdata),y=pdata$surv.mu, type="l", col="red")
     lines(x=1:nrow(pdata),y=pdata$surv.best, col="blue")
+
     plot(x=1:nrow(pdata),y=pdata$repro.mu, type="l", col="red",
       xlab="Generation", ylab="Reproductive Fitness")
+    polygon(c(x,rev(x)),c(pdata$repro.mu-pdata$repro.sd,rev(pdata$repro.mu+pdata$repro.sd)),col="lightgrey", border="darkgrey")
+    lines(x=1:nrow(pdata),y=pdata$repro.mu, type="l", col="red")    
     lines(x=1:nrow(pdata),y=pdata$repro.best, col="blue")
 
-    pdata <- obj$tracefit$k
+    pdata <- obj$trace$k
     x <- 1:nrow(pdata)
     plot(x=x,y=pdata$k.mu,type="l", ylim=c(0,ceiling(max(pdata$k.mu))), xlab="Generation", ylab="Average Model Size")
     polygon(c(x,rev(x)),c(pdata$k.mu-pdata$k.sd,rev(pdata$k.mu+pdata$k.sd)),col="lightgrey", border="darkgrey")
