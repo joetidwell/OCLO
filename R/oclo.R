@@ -106,7 +106,7 @@ fitness <- function(y,X,lambda,n,k,surv.fun,repro.fun,n.elites) {
     tracek <- apply(lambda,1,function(l)sum(l!=0))
 
     # best chromosomes 
-    elites <- lambda[order(repro.fit,surv.fit),][1:n.elites,]
+    elites <- lambda[order(repro.fit,-surv.fit),][1:n.elites,]
 
 
     return(list(surv   = surv.fit,
@@ -207,7 +207,11 @@ oclo.ocloData <- function(gdata, ...,
                           seed = "random",
                           n.elites = 5) {
 
+
   out <- structure(list(), class = "ocloFit")
+  if(model.select) {
+    class(out) <- c(class(out),"modelSelect")
+  }
   trace.ga <- structure(list(), class="ocloTrace")
 
   y <- gdata$y
@@ -251,7 +255,7 @@ oclo.ocloData <- function(gdata, ...,
     
     fit <- fitness(y,X,lambda,n,k,surv.fun,repro.fun,n.elites)
     if(pdata) { trace.ga <- addTrace(trace.ga, fit) }
-    lambda <- lambda[order(fit$repro, fit$surv),]
+    lambda <- lambda[order(fit$repro, -fit$surv),]
 
 
   } else {
@@ -450,3 +454,54 @@ plot.ocloFit <- function(obj, ...) {
 
   par(mfrow=c(1,1))
 }
+
+
+#' 
+#' @export
+jitterFit <- function(mod, 
+                      s     = .005,
+                      prob  = .25,
+                      n     = 1e4, 
+                      pdata = TRUE,
+                      ...) {
+
+  out <- structure(list(), class="jitterFit")
+  data <- model.matrix(mod$model)
+
+  best.idx <- which(mod$fits[,ncol(mod$fits)]==mod$fits[1,ncol(mod$fits)])
+  oscale <- mod$oscale[best.idx,2]
+  gbeta <- mod$Beta[best.idx,-1,drop=FALSE]/oscale
+
+  m <- matrix(c(t(gbeta)),ncol=ncol(gbeta),nrow=n,byrow=TRUE)
+  mut.idx <- which(m!=0)
+  mut.idx <- sample(mut.idx,rbinom(1,length(mut.idx),prob))
+  m[mut.idx] <- m[mut.idx] + rnorm(length(mut.idx),0,s)
+
+  y.hat <- model.matrix(mod$model)%*%t(m)
+  tau <- abs(apply(y.hat,2,function(yh) {cor.fk(y,yh)}))
+
+  idx1 <- which(tau>=mod$fits[1,'tau'])
+  idx2 <- which(!duplicated(m[idx1,]))
+  m <- m[idx1,][idx2,]
+  tau <- tau[idx1][idx2]
+
+  scaling <- t(apply(m,1,function(beta) {
+        coef(lm(y ~ data %*% beta))}))
+  Beta <- cbind(`(Intercept)`=scaling[,1], m * scaling[,2])
+  R.sq <- apply(y.hat[,idx1][,idx2],2,function(yh) {cor(y,yh)})^2
+  ord <- order(-tau,-R.sq)
+
+  fits <- cbind(tau,R.sq)
+  fits <- fits[ord,]
+  Beta <- Beta[ord,]
+  best.idx <- which(fits[,2]==fits[1,2])
+
+  out$fits <- fits[best.idx,]  
+  out$beta <- Beta[best.idx,]
+  out$Beta <- Beta
+
+  return(out)
+}
+
+
+
