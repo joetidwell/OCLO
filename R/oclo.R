@@ -175,7 +175,7 @@ repro <- function(fit,mu.idx,n.beta,n.elites,k,mu,lambda,p.mutate,s.mutate,i) {
                        rbinom(1,prod(dim(lambda)),p.mutate))
   if(i < 5) {
   lambda[mutate.idx] <- rnorm(length(mutate.idx),0,1)        
-  } else if(i < 15) {
+  } else if(i < 30) {
     lambda[mutate.idx] <- lambda[mutate.idx] + 
                           rnorm(length(mutate.idx),0,s.mutate)        
   } else {
@@ -297,6 +297,10 @@ oclo.ocloData <- function(gdata, ...,
       # mutate
       mutate.idx <- sample(1:prod(dim(lambda)),
                            rbinom(1,prod(dim(lambda)),p.mutate))
+
+# cow
+# hard code minimum generations
+# fix .25 / .125
 
       if(i < 10) {
         lambda[mutate.idx] <- lambda[mutate.idx] + rnorm(length(mutate.idx),0,.25)        
@@ -458,39 +462,45 @@ plot.ocloFit <- function(obj, ...) {
 
 #' 
 #' @export
-jitterFit <- function(mod, 
-                      s     = .005,
-                      prob  = .25,
-                      n     = 1e4, 
-                      pdata = TRUE,
+jitterFit <- function(mod,            # Fitted oclo model
+                      s     = .005,   # jitter sd
+                      prob  = .25,    # probability of jitter
+                      n     = 1e4,    # number of beta vectors
+                      pdata = TRUE,   # Generate plotting data
                       ...) {
 
   out <- structure(list(), class="jitterFit")
   data <- model.matrix(mod$model)
 
+  # Get all models with equivalent best fit
   best.idx <- which(mod$fits[,ncol(mod$fits)]==mod$fits[1,ncol(mod$fits)])
   oscale <- mod$oscale[best.idx,2]
   gbeta <- mod$Beta[best.idx,-1,drop=FALSE]/oscale
 
+  # Create n new beta vectors
   m <- matrix(c(t(gbeta)),ncol=ncol(gbeta),nrow=n,byrow=TRUE)
   mut.idx <- which(m!=0)
   mut.idx <- sample(mut.idx,rbinom(1,length(mut.idx),prob))
   m[mut.idx] <- m[mut.idx] + rnorm(length(mut.idx),0,s)
 
+  # Generate fitted values
   y.hat <- model.matrix(mod$model)%*%t(m)
   tau <- abs(apply(y.hat,2,function(yh) {cor.fk(y,yh)}))
 
+  # Select unique fits that are better than the original
   idx1 <- which(tau>=mod$fits[1,'tau'])
   idx2 <- which(!duplicated(m[idx1,]))
   m <- m[idx1,][idx2,]
   tau <- tau[idx1][idx2]
 
+  # oclo scaling
   scaling <- t(apply(m,1,function(beta) {
         coef(lm(y ~ data %*% beta))}))
   Beta <- cbind(`(Intercept)`=scaling[,1], m * scaling[,2])
   R.sq <- apply(y.hat[,idx1][,idx2],2,function(yh) {cor(y,yh)})^2
   ord <- order(-tau,-R.sq)
 
+  # return best equivalent models
   fits <- cbind(tau,R.sq)
   fits <- fits[ord,]
   Beta <- Beta[ord,]
