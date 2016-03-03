@@ -1,6 +1,3 @@
-library(pcaPP)
-library(pryr)
-
 #' Order Constrained Linear Optimization
 #'
 #' This function allows you to do silly things.
@@ -165,7 +162,7 @@ repro <- function(fit,mu.idx,n.beta,n.elites,k,mu,lambda,p.mutate,s.mutate,i) {
   parent.A <- mu[lambda.idx,]
   parent.B <- mu[sample(lambda.idx),]
   lambda <- do.call(rbind, 
-                    Map(partial(crossover, k=k, 
+                    Map(pryr::partial(crossover, k=k, 
                                 parent.A=parent.A, 
                                 parent.B=parent.B), 
                         1:length(lambda.idx), crosspoint))
@@ -199,7 +196,7 @@ oclo.ocloData <- function(gdata, ...,
                           n.beta = 1000, 
                           n.gens=10,
                           model.select=TRUE,
-                          surv.fun = cor.fk,
+                          surv.fun = pcaPP::cor.fk,
                           repro.fun = bicFit,
                           p.mutate = .01,
                           pdata = TRUE,
@@ -287,7 +284,7 @@ oclo.ocloData <- function(gdata, ...,
       parent.A <- lambda[lambda.idx,]
       parent.B <- lambda[sample(lambda.idx),]
 
-      lambda <- do.call(rbind, Map(partial(crossover, 
+      lambda <- do.call(rbind, Map(pryr::partial(crossover, 
                                            k=k, 
                                            parent.A=parent.A, 
                                            parent.B=parent.B), 
@@ -332,7 +329,7 @@ oclo.ocloData <- function(gdata, ...,
         }))
     out$Beta <- cbind(`(Intercept)`=scaling[,1], lambda * scaling[,2])
     colnames(out$Beta)[-1] <- colnames(X)
-    tau <- apply(cbind(1,X)%*%t(out$Beta),2,function(yhat) {cor.fk(y,yhat)})
+    tau <- apply(cbind(1,X)%*%t(out$Beta),2,function(yhat) {pcaPP::cor.fk(y,yhat)})
     R.sq <- apply(cbind(1,X)%*%t(out$Beta),2,function(yhat) {cor(y,yhat)})^2
     bic <- bicFit(tau,n,k,lambda)
     out$Beta <- out$Beta[order(bic, -tau, -R.sq),]
@@ -485,7 +482,7 @@ jitterFit <- function(mod,            # Fitted oclo model
 
   # Generate fitted values
   y.hat <- model.matrix(mod$model)%*%t(m)
-  tau <- abs(apply(y.hat,2,function(yh) {cor.fk(y,yh)}))
+  tau <- abs(apply(y.hat,2,function(yh) {pcaPP::cor.fk(y,yh)}))
 
   # Select unique fits that are better than the original
   idx1 <- which(tau>=mod$fits[1,'tau'])
