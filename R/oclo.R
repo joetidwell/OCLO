@@ -510,5 +510,30 @@ jitterFit <- function(mod,            # Fitted oclo model
   return(out)
 }
 
+#' 
+#' @export
+summary.jitterFit <- function(object, ...) {
+  class(object) <- "jitterFit.ocloFit"
+  return(object)
+}
 
+#' 
+#' @export
+print.summary.jitterFit <- function(x, ...) {
+  print.jitterFit(x, ...)
+}
+
+#' 
+#' @export
+print.jitterFit <- function(x, ...) {
+  cat("\nCoefficients:\n")
+  print(round(x$beta,5))
+  cat("\nFit Metrics:\n")
+  print(round(x$fits,5))
+
+  # cat("\nBIC\t\t\t:", round(bic,3),
+  #     "\nPseudo-R^2\t\t:", round(r.sq,3),
+  #     "\nPearson's r\t\t:", round(r,3),
+  #     "\nKendall's tau-b\t\t:", round(tau,3),"\n")
+}
 
