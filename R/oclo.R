@@ -467,7 +467,8 @@ jitterFit <- function(mod,            # Fitted oclo model
                       ...) {
 
   out <- structure(list(), class="jitterFit")
-  data <- model.matrix(mod$model)
+  X <- model.matrix(attr(mod$model,"terms"),mod$model)
+  y <- mod$model[,all.vars(attr(mod$model,"terms"))[1]]
 
   # Get all models with equivalent best fit
   best.idx <- which(mod$fits[,ncol(mod$fits)]==mod$fits[1,ncol(mod$fits)])
@@ -481,7 +482,7 @@ jitterFit <- function(mod,            # Fitted oclo model
   m[mut.idx] <- m[mut.idx] + rnorm(length(mut.idx),0,s)
 
   # Generate fitted values
-  y.hat <- model.matrix(mod$model)%*%t(m)
+  y.hat <- X%*%t(m)
   tau <- abs(apply(y.hat,2,function(yh) {pcaPP::cor.fk(y,yh)}))
 
   # Select unique fits that are better than the original
@@ -492,7 +493,7 @@ jitterFit <- function(mod,            # Fitted oclo model
 
   # oclo scaling
   scaling <- t(apply(m,1,function(beta) {
-        coef(lm(y ~ data %*% beta))}))
+        coef(lm(y ~ X %*% beta))}))
   Beta <- cbind(`(Intercept)`=scaling[,1], m * scaling[,2])
   R.sq <- apply(y.hat[,idx1][,idx2],2,function(yh) {cor(y,yh)})^2
   ord <- order(-tau,-R.sq)
