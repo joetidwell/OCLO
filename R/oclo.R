@@ -476,7 +476,7 @@ jitterFit <- function(mod,            # Fitted oclo model
   gbeta <- mod$Beta[best.idx,-1,drop=FALSE]/oscale
 
   # Create n new beta vectors
-  m <- matrix(c(t(gbeta)),ncol=ncol(gbeta),nrow=n,byrow=TRUE)
+  m <- suppressWarnings(matrix(c(t(gbeta)),ncol=ncol(gbeta),nrow=n,byrow=TRUE))
   mut.idx <- which(m!=0)
   mut.idx <- sample(mut.idx,rbinom(1,length(mut.idx),prob))
   m[mut.idx] <- m[mut.idx] + rnorm(length(mut.idx),0,s)
