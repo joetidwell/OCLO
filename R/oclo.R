@@ -83,10 +83,18 @@ init.chromo <- function(k,
   K <- K[,rep(1:ncol(K),n.K)]
   K <- apply(K,2,sample)
   lambda <- matrix(rnorm(ncol(X)*ncol(K)),nrow=ncol(K))
+
+# Restrict search space
+  lambda[1,] <- abs(lambda[1,])
+
   if(seed=="ols") {
     lambda <- t(t(lambda) + coef(lm(y~X))[-1])
   }
   if(model.select) {lambda <- lambda*t(K)}
+
+  # L2-norm vectors
+  lambda <- t(apply(lambda,1,function(b) {b/sqrt(sum(b^2))}))
+
   return(lambda)
 }
 
@@ -210,6 +218,7 @@ oclo.ocloData <- function(gdata, ...,
     class(out) <- c(class(out),"modelSelect")
   }
   trace.ga <- structure(list(), class="ocloTrace")
+  trace.beta <- structure(list(), class="betaTrace")
 
   y <- gdata$y
   X <- gdata$X
@@ -229,6 +238,7 @@ oclo.ocloData <- function(gdata, ...,
   # Initialize plotting variables
   if(pdata){
     trace.ga <- initTrace(trace.ga)
+    trace.beta[[1]] <- unique(lambda)
   }
 
   # Two-step GA for model selection
@@ -237,22 +247,27 @@ oclo.ocloData <- function(gdata, ...,
 
       fit <- fitness(y,X,lambda,n,k,surv.fun,repro.fun,n.elites)
 
-      # Plotting data
-      if(pdata) {
-        trace.ga <- addTrace(trace.ga, fit) 
-      }
-
       # Survival Fitness
       mu <- cull(fit$surv, n.beta, lambda)
 
       # linear rank-selection by reproductive fitness
       lambda <- repro(fit,mu.idx=as.numeric(rownames(mu)),n.beta,n.elites,k,mu,lambda,p.mutate,s.mutate,i)
 
+      # Plotting data
+      if(pdata) {
+        trace.ga <- addTrace(trace.ga, fit) 
+        trace.beta[[i+1]] <- unique(lambda)
+      }
+
     }
     
     fit <- fitness(y,X,lambda,n,k,surv.fun,repro.fun,n.elites)
-    if(pdata) { trace.ga <- addTrace(trace.ga, fit) }
     lambda <- lambda[order(fit$repro, -fit$surv),]
+    if(pdata) { 
+      trace.ga <- addTrace(trace.ga, fit) 
+      trace.beta[[i+1]] <- unique(lambda)
+    }
+
 
 
   } else {
@@ -349,6 +364,7 @@ oclo.ocloData <- function(gdata, ...,
   out$call <- gdata$formula
   out$model <- gdata$model
   out$trace <- trace.ga
+  out$trace_beta <- trace.beta
 
   out
 }
