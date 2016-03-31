@@ -95,6 +95,9 @@ init.chromo <- function(k,
   # L2-norm vectors
   lambda <- t(apply(lambda,1,function(b) {b/sqrt(sum(b^2))}))
 
+  # Add null model
+  rbind(rep(0,k), lambda)
+
   return(lambda)
 }
 
@@ -226,8 +229,10 @@ oclo.ocloData <- function(gdata, ...,
   n <- length(y)
 
   # If only one continuous predictor, no point in fitting OCLO.
-  warning("A single (continuous) predictor OCLO model is identical to OLS. Returning a lm() object.")
-  return(lm(y~X))
+  if(k==1) {
+    warning("A single (continuous) predictor OCLO model is identical to OLS. Returning a lm() object.")
+    return(lm(y~X))    
+  }
 
   # If not specified, default # of betas is 500 * # of predictors
   if(is.null(n.beta)) {
