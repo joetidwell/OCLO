@@ -225,6 +225,10 @@ oclo.ocloData <- function(gdata, ...,
   k <- ncol(X)
   n <- length(y)
 
+  # If only one continuous predictor, no point in fitting OCLO.
+  warning("A single (continuous) predictor OCLO model is identical to OLS. Returning a lm() object.")
+  return(lm(y~X))
+
   # If not specified, default # of betas is 500 * # of predictors
   if(is.null(n.beta)) {
     n.beta <- 500*k
