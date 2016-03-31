@@ -218,7 +218,7 @@ oclo.ocloData <- function(gdata, ...,
     class(out) <- c(class(out),"modelSelect")
   }
   trace.ga <- structure(list(), class="ocloTrace")
-  trace.beta <- structure(list(), class="betaTrace")
+  # trace.beta <- structure(list(), class="betaTrace")
 
   y <- gdata$y
   X <- gdata$X
@@ -238,7 +238,7 @@ oclo.ocloData <- function(gdata, ...,
   # Initialize plotting variables
   if(pdata){
     trace.ga <- initTrace(trace.ga)
-    trace.beta[[1]] <- unique(lambda)
+    # trace.beta[[1]] <- unique(lambda)
   }
 
   # Two-step GA for model selection
@@ -256,7 +256,7 @@ oclo.ocloData <- function(gdata, ...,
       # Plotting data
       if(pdata) {
         trace.ga <- addTrace(trace.ga, fit) 
-        trace.beta[[i+1]] <- unique(lambda)
+        # trace.beta[[i+1]] <- unique(lambda)
       }
 
     }
@@ -265,7 +265,7 @@ oclo.ocloData <- function(gdata, ...,
     lambda <- lambda[order(fit$repro, -fit$surv),]
     if(pdata) { 
       trace.ga <- addTrace(trace.ga, fit) 
-      trace.beta[[i+1]] <- unique(lambda)
+      # trace.beta[[i+1]] <- unique(lambda)
     }
 
 
@@ -364,7 +364,7 @@ oclo.ocloData <- function(gdata, ...,
   out$call <- gdata$formula
   out$model <- gdata$model
   out$trace <- trace.ga
-  out$trace_beta <- trace.beta
+  # out$trace_beta <- trace.beta
 
   out
 }
