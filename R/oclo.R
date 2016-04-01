@@ -84,7 +84,7 @@ init.chromo <- function(k,
   K <- apply(K,2,sample)
   lambda <- matrix(rnorm(ncol(X)*ncol(K)),nrow=ncol(K))
 
-# Restrict search space
+  # Restrict search space
   lambda[1,] <- abs(lambda[1,])
 
   if(seed=="ols") {
@@ -95,8 +95,6 @@ init.chromo <- function(k,
   # L2-norm vectors
   lambda <- t(apply(lambda,1,function(b) {b/sqrt(sum(b^2))}))
 
-  # Add null model
-  rbind(rep(0,k), lambda)
 
   return(lambda)
 }
@@ -277,8 +275,6 @@ oclo.ocloData <- function(gdata, ...,
       # trace.beta[[i+1]] <- unique(lambda)
     }
 
-
-
   } else {
     for(i in (1:n.gens)) {
       tracek <- apply(lambda,1,function(l)sum(l==0))
@@ -375,6 +371,12 @@ oclo.ocloData <- function(gdata, ...,
   out$trace <- trace.ga
   # out$trace_beta <- trace.beta
 
+  if(model.select) {
+    out$controls$model.select <- TRUE
+  } else {
+    out$controls$model.select <- FALSE
+  }
+
   out
 }
 
@@ -394,19 +396,33 @@ print.summary.ocloFit <- function(x, ...) {
 #' 
 #' @export
 print.ocloFit <- function(x, ...) {
+  # y.hat <- cbind(1,model.matrix(attr(x$model,"terms"),x$model))%*%coef(x)
+  # r.sq <- 1 - sum((y.hat - x$model[,1])^2)/(sum((x$model[,1]-mean(x$model[,1]))^2))
+  # tau <- cor.fk(y.hat,x$model[,1])
+  # r <- cor(y.hat, x$model[,1])
+
+  if(x$controls$model.select) {
+    x$coefficients[x$coefficients==0] <- NA
+  }
+
+  if(x$controls$model.select & (min(x$fits[,'BIC'])>0)) {
+    warning("OCLO found no model that yielded a better BIC than the null model.")
+    x$coefficients <- rep(NA, length(x$coefficients))
+    r.sq <- r <- tau <- bic <- NA
+  } else {
+    r.sq <- x$fits[,'R.sq'][1]
+    r <- sqrt(x$fits[,'R.sq'][1])
+    tau <- x$fits[,'tau'][1]
+    bic <- x$fits[,'BIC'][1] 
+  }
+
   cat("Call:\n")
   print(x$call)
   cat("\nCoefficients:\n")
   print(x$coefficients)
 
-  # y.hat <- cbind(1,model.matrix(attr(x$model,"terms"),x$model))%*%coef(x)
-  # r.sq <- 1 - sum((y.hat - x$model[,1])^2)/(sum((x$model[,1]-mean(x$model[,1]))^2))
-  # tau <- cor.fk(y.hat,x$model[,1])
-  # r <- cor(y.hat, x$model[,1])
-  r.sq <- x$fits[,'R.sq'][1]
-  r <- sqrt(x$fits[,'R.sq'][1])
-  tau <- x$fits[,'tau'][1]
-  bic <- x$fits[,'BIC'][1]
+
+
 
   cat("\nBIC\t\t\t:", round(bic,3),
       "\nPseudo-R^2\t\t:", round(r.sq,3),
