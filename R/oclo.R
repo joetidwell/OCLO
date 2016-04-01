@@ -34,15 +34,19 @@ oclo.formula <- function(x, data=list(), ...) {
 
   # Remove intercept, if present
   cl <- match.call()  
-  if(attr(terms(x),"intercept")==1) {
-    x <- update(x, ~ . -1)
-  }
+  # if(attr(terms(x),"intercept")==1) {
+  #   x <- update(x, ~ . -1)
+  # }
 
   # create model.frame
   mframe <- model.frame(x, data)
   
   # create data
-  X <- model.matrix(x,mframe)
+  if(attr(terms(x),"intercept")==1) {
+    X <- model.matrix(x,mframe)[,-1]
+  } else {
+    X <- model.matrix(x,mframe)
+  }
   y <- as.matrix(mframe[,1, drop = FALSE])
 
   ocloData <- structure(list(y=y,
