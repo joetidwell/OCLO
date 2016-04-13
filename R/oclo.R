@@ -58,8 +58,20 @@ oclo.formula <- function(x, data=list(), ...) {
 
 
 bicFit <- function(tau,n,k,B) {
+  # tau to r transformation
   knp <- sin(pi/2.0*tau*(n-k-1.0)/n)
-  n * log(1.0 - knp^2) + (k-apply(B, 1, function(r) sum(r==0))) * log(n)  
+
+  # constants use for BIC penalty
+  fterms <- attr(terms(formula),"factors")[-1,]
+  flabs <- attr(terms(formula),"term.labels")
+  fint <- grep(":",flabs)
+  fassign <- attr(model.matrix(formula,data),"assign")[-1]
+
+  n * log(1.0 - knp^2) + 
+    apply(B, 1, function(b) {
+      bidx <- fassign[as.logical(b)]
+      sum(rowSums(as.matrix(fterms[,bidx]))>0) + sum(bidx%in%fint)
+    }) * log(n)  
 }
 
 crossover <- function(idx, ctpt, parent.A, parent.B, k) {
